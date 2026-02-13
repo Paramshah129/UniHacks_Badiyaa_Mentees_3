@@ -3,8 +3,8 @@ import 'package:friendsconnect/main.dart';
 
 void main() {
   testWidgets('App loads without crashing', (WidgetTester tester) async {
-    await tester.pumpWidget(const BondBoxApp());
+    await tester.pumpWidget(const MyApp());
 
-    expect(find.byType(BondBoxApp), findsOneWidget);
+    expect(find.byType(MyApp), findsOneWidget);
   });
 }

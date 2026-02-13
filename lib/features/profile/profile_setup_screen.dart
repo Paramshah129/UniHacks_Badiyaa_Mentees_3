@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-<<<<<<< Updated upstream
-=======
 import '../../core/theme/bondbox_theme.dart';
 import '../navigation/main_navigation_screen.dart';
->>>>>>> Stashed changes
 
 class ProfileSetupScreen extends StatelessWidget {
   const ProfileSetupScreen({super.key});
@@ -11,30 +8,6 @@ class ProfileSetupScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-<<<<<<< Updated upstream
-      appBar: AppBar(
-        title: const Text("Profile Setup"),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              "Profile Setup Screen 🚀",
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text("Go Back"),
-            ),
-          ],
-=======
       backgroundColor: BondBoxColors.background,
       body: SafeArea(
         child: SingleChildScrollView(
@@ -86,14 +59,10 @@ class ProfileSetupScreen extends StatelessWidget {
               ),
             ],
           ),
->>>>>>> Stashed changes
         ),
       ),
     );
   }
-<<<<<<< Updated upstream
-}
-=======
 
   Widget _buildBioField() {
     return Column(
@@ -163,4 +132,3 @@ class ProfileSetupScreen extends StatelessWidget {
     );
   }
 }
->>>>>>> Stashed changes

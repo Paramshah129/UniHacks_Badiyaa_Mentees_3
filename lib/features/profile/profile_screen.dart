@@ -18,11 +18,11 @@ class ProfileScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             const Text(
-              "Jack Chaos ⚡",
+              "Jack Chaos",
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const Text(
-              "Meme Master • Vibe: ✨",
+              "Meme Master • Vibe: Chaos",
               style: TextStyle(color: Colors.grey, fontSize: 16),
             ),
             const SizedBox(height: 32),
