@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/theme/bondbox_theme.dart';
 import '../../service/team_service.dart';
 import '../chat/team_chat_screen.dart';
+import '../rewards/rewards_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -310,7 +311,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
           ),
-          const Icon(Icons.chevron_right_rounded, color: BondBoxColors.textSecondary),
+          IconButton(
+  icon: const Icon(
+    Icons.chevron_right_rounded,
+    color: BondBoxColors.textSecondary,
+  ),
+  onPressed: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RewardsScreen(),
+      ),
+    );
+  },
+)
         ],
       ),
     );
