@@ -43,3 +43,30 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+
+# Firebase
+firebase-debug.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Flutter build folders (IMPORTANT)
+**/build/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+
+# Android gradle
+**/.gradle/
+
+# iOS Pods
+**/Pods/
+
+# Generated binaries
+**/*.dex
+**/*.aar
+**/*.jar
+**/intermediates/

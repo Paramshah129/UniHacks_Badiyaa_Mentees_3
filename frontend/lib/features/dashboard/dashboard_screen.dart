@@ -1,48 +1,171 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/theme/bondbox_theme.dart';
+import '../../service/team_service.dart';
+import '../chat/team_chat_screen.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: BondBoxColors.background,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 10),
-              _buildTopBar(context),
-              const SizedBox(height: 24),
-              _buildRedeemSection(context),
-              const SizedBox(height: 24),
-              _buildJoinCrewSection(context),
-              const SizedBox(height: 24),
-              _buildHighlightCard(context),
-              const SizedBox(height: 32),
-              _buildSectionHeader(context, "Games"),
-              const SizedBox(height: 16),
-              _buildGamesSection(context),
-              const SizedBox(height: 32),
-              _buildSectionHeader(context, "Time Capsules"),
-              const SizedBox(height: 16),
-              _buildTimeCapsulesSection(context),
-              const SizedBox(height: 32),
-              _buildSectionHeader(context, "Memory Vault"),
-              const SizedBox(height: 16),
-              _buildMemoryVaultSection(context),
-              const SizedBox(height: 40),
-            ],
-          ),
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  final TeamService _teamService = TeamService();
+  final TextEditingController _crewCodeController = TextEditingController();
+  bool _isJoining = false;
+
+  @override
+  void dispose() {
+    _crewCodeController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _joinTeam() async {
+    if (_crewCodeController.text.trim().isEmpty) return;
+    setState(() => _isJoining = true);
+    try {
+      await _teamService.joinTeam(_crewCodeController.text.trim());
+      if (!mounted) return;
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Welcome to the crew!")),
+      );
+      
+      // Get the team ID/Name to navigate (Fetching purely for nav)
+      // Ideally logic returns this, but for now we fetch user's updated team
+      final user = FirebaseAuth.instance.currentUser;
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user?.uid).get();
+      final teamId = userDoc.data()?['currentTeamId'];
+      
+      if (teamId != null) {
+         final teamDoc = await FirebaseFirestore.instance.collection('teams').doc(teamId).get();
+         final teamName = teamDoc.data()?['name'] ?? "Crew Chat";
+         
+         Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => TeamChatScreen(teamId: teamId, teamName: teamName)),
+        );
+      }
+
+      _crewCodeController.clear();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      setState(() => _isJoining = false);
+    }
+  }
+
+  Future<void> _createTeam() async {
+    // Show dialog to enter team name
+    String teamName = "";
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Create a Crew", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: TextField(
+          onChanged: (val) => teamName = val,
+          decoration: const InputDecoration(hintText: "Enter Crew Name"),
         ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(backgroundColor: BondBoxColors.primaryPurple, foregroundColor: Colors.white),
+            child: const Text("Create"),
+          ),
+        ],
       ),
+    );
+
+    if (teamName.isNotEmpty) {
+      try {
+        final teamId = await _teamService.createTeam(teamName);
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Crew created successfully!")),
+        );
+        
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => TeamChatScreen(teamId: teamId, teamName: teamName)),
+        );
+
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('users').doc(user?.uid).snapshots(),
+      builder: (context, userSnapshot) {
+        final userData = userSnapshot.data?.data() as Map<String, dynamic>?;
+        final teamId = userData?['currentTeamId'] as String?;
+
+        return StreamBuilder<DocumentSnapshot>(
+          stream: teamId != null ? _teamService.getTeamStream(teamId) : null,
+          builder: (context, teamSnapshot) {
+            final teamData = teamSnapshot.data?.data() as Map<String, dynamic>?;
+
+            return Scaffold(
+              backgroundColor: BondBoxColors.background,
+              body: SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 10),
+                      _buildTopBar(context, userData, teamData),
+                      const SizedBox(height: 24),
+                      _buildRedeemSection(context),
+                      const SizedBox(height: 24),
+                      if (teamId == null)
+                        _buildJoinCrewSection(context)
+                      else
+                        _buildCurrentTeamCard(context, teamData, teamId),
+                      const SizedBox(height: 24),
+                      _buildHighlightCard(context),
+                      const SizedBox(height: 32),
+                      _buildSectionHeader(context, "Games"),
+                      const SizedBox(height: 16),
+                      _buildGamesSection(context),
+                      const SizedBox(height: 32),
+                      _buildSectionHeader(context, "Time Capsules"),
+                      const SizedBox(height: 16),
+                      _buildTimeCapsulesSection(context),
+                      const SizedBox(height: 32),
+                      _buildSectionHeader(context, "Memory Vault"),
+                      const SizedBox(height: 16),
+                      _buildMemoryVaultSection(context),
+                      const SizedBox(height: 40),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
+        );
+      }
     );
   }
 
-  Widget _buildTopBar(BuildContext context) {
+  Widget _buildTopBar(BuildContext context, Map<String, dynamic>? userData, Map<String, dynamic>? teamData) {
+    final displayName = userData?['nickname'] ?? userData?['fullName'] ?? "Chaos Agent";
+    final teamName = teamData?['name'];
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -55,12 +178,22 @@ class DashboardScreen extends StatelessWidget {
                 backgroundImage: NetworkImage("https://i.pravatar.cc/150?u=jack"),
               ),
               const SizedBox(width: 12),
-              Text(
-                "Welcome Back, Jack!",
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Welcome Back, $displayName!",
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                  if (teamName != null)
+                    Text(
+                      teamName,
+                      style: const TextStyle(fontSize: 12, color: BondBoxColors.primaryPurple, fontWeight: FontWeight.bold),
+                    ),
+                ],
               ),
             ],
           ),
@@ -71,6 +204,73 @@ class DashboardScreen extends StatelessWidget {
             constraints: const BoxConstraints(),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCurrentTeamCard(BuildContext context, Map<String, dynamic>? teamData, String? teamId) {
+    if (teamData == null) return const SizedBox.shrink();
+    
+    return GestureDetector(
+      onTap: () {
+        if (teamId != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => TeamChatScreen(
+                teamId: teamId,
+                teamName: teamData['name'] ?? "Crew",
+              ),
+            ),
+          );
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: BondBoxTheme.primaryGradient,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  teamData['name'] ?? "My Crew",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    "Code: ${teamData['inviteCode']}",
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white70, size: 16),
+                const SizedBox(width: 8),
+                const Text(
+                  "Tap to open Crew Chat", 
+                   style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -216,57 +416,122 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
+
   Widget _buildJoinCrewSection(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      width: double.infinity,
       decoration: BoxDecoration(
-        color: BondBoxColors.primaryPurple.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: BondBoxColors.primaryPurple.withOpacity(0.1)),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFE0C3FC), Color(0xFF8EC5FC)], // Pastel Blue-Purple
+          begin: Alignment.bottomLeft,
+          end: Alignment.topRight,
+        ),
+        borderRadius: BorderRadius.circular(30),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Text(
-            "Join your crew",
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: "Enter Crew Code",
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
+          // Decorative background elements
+          Positioned(right: -20, top: -20, child: Icon(Icons.star_rounded, size: 100, color: Colors.white.withOpacity(0.2))),
+          
+          Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                     const Text(
+                      "Your Crew Awaits!",
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1E1E2C),
+                      ),
                     ),
-                    hintStyle: const TextStyle(fontSize: 14),
-                  ),
+                    Icon(Icons.diversity_3_rounded, color: Colors.indigo.shade400, size: 28),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 12),
-              ElevatedButton(
-                onPressed: () {},
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: BondBoxColors.primaryPurple,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                const SizedBox(height: 16),
+                // Illustration placeholder
+                Image.network(
+                  "https://api.iconify.design/noto:people-hugging.svg", 
+                  height: 100,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_,__,___) => const SizedBox(height: 100, child: Icon(Icons.group, size: 50, color: Colors.white)),
                 ),
-                child: const Text("Join", style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ],
+                const SizedBox(height: 24),
+                
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        children: [
+                          const Text("Form Your Squad", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF4B5563))),
+                          const SizedBox(height: 8),
+                          ElevatedButton(
+                            onPressed: _createTeam,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF8B5CF6),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            child: const Text("+ Create New Crew", style: TextStyle(fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      height: 50,
+                      width: 1,
+                      color: Colors.white.withOpacity(0.5),
+                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                    ),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          const Text("Join the Vibe", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF4B5563))),
+                          const SizedBox(height: 8),
+                          ElevatedButton(
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text("Enter Crew Code"),
+                                  content: TextField(
+                                    controller: _crewCodeController,
+                                    decoration: const InputDecoration(hintText: "e.g. 5x82ka", border: OutlineInputBorder()),
+                                  ),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        Navigator.pop(ctx);
+                                        _joinTeam();
+                                      }, 
+                                      child: const Text("Join")
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF60A5FA),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            child: const Text("Find a Crew", style: TextStyle(fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
