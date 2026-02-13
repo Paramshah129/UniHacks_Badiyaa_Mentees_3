@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+<<<<<<< Updated upstream
 import 'package:google_fonts/google_fonts.dart';
 
 class BondBoxTheme {
@@ -17,20 +18,47 @@ class BondBoxTheme {
   // Gradients
   static const LinearGradient primaryGradient = LinearGradient(
     colors: [lavender, peach],
+=======
+
+class BondBoxColors {
+  static const Color primaryPurple = Color(0xFF8B5CF6);
+  static const Color secondaryPink = Color(0xFFF472B6);
+  static const Color accentBlue = Color(0xFF60A5FA);
+  static const Color softYellow = Color(0xFFFDE68A);
+  static const Color background = Color(0xFFF9FAFB);
+  static const Color cardBackground = Color(0xFFFFFFFF);
+  static const Color textPrimary = Color(0xFF1F2937);
+  static const Color textSecondary = Color(0xFF6B7280);
+  
+  static const LinearGradient purplePinkGradient = LinearGradient(
+    colors: [primaryPurple, secondaryPink],
+>>>>>>> Stashed changes
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
+<<<<<<< Updated upstream
   static const LinearGradient skyGradient = LinearGradient(
     colors: [skyBlue, Color(0xFFD1FDFF)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
 
+=======
+  static const LinearGradient bluePinkGradient = LinearGradient(
+    colors: [accentBlue, secondaryPink],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+}
+
+class BondBoxTheme {
+>>>>>>> Stashed changes
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
+<<<<<<< Updated upstream
         seedColor: lavender,
         primary: softPurple,
         secondary: hotPink,
@@ -67,10 +95,54 @@ class BondBoxTheme {
             fontWeight: FontWeight.bold,
             fontSize: 18,
           ),
+=======
+        seedColor: BondBoxColors.primaryPurple,
+        primary: BondBoxColors.primaryPurple,
+        secondary: BondBoxColors.secondaryPink,
+      ),
+      scaffoldBackgroundColor: BondBoxColors.background,
+      fontFamily: 'Inter',
+      textTheme: const TextTheme(
+        headlineLarge: TextStyle(
+          fontSize: 28,
+          fontWeight: FontWeight.bold,
+          color: BondBoxColors.textPrimary,
+        ),
+        headlineMedium: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          color: BondBoxColors.textPrimary,
+        ),
+        titleLarge: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: BondBoxColors.textPrimary,
+        ),
+        bodyLarge: TextStyle(
+          fontSize: 16,
+          color: BondBoxColors.textPrimary,
+        ),
+        bodyMedium: TextStyle(
+          fontSize: 14,
+          color: BondBoxColors.textSecondary,
+        ),
+        labelLarge: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: BondBoxColors.primaryPurple,
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: BondBoxColors.cardBackground,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+>>>>>>> Stashed changes
         ),
       ),
     );
   }
+<<<<<<< Updated upstream
 
   static ThemeData get darkTheme {
     return ThemeData(
@@ -85,4 +157,6 @@ class BondBoxTheme {
       textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
     );
   }
+=======
+>>>>>>> Stashed changes
 }

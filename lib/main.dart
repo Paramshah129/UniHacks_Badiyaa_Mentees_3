@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+<<<<<<< Updated upstream
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'features/auth/login_screen.dart';
+=======
+import 'core/theme/bondbox_theme.dart';
+>>>>>>> Stashed changes
 import 'features/onboarding/onboarding_screen.dart';
 
 void main() async {
@@ -15,6 +19,7 @@ void main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
+<<<<<<< Updated upstream
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(
@@ -38,3 +43,15 @@ class BondBoxApp extends StatelessWidget {
     );
   }
 }
+=======
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'BondBox',
+      theme: BondBoxTheme.lightTheme,
+      home: const OnboardingScreen(),
+      debugShowCheckedModeBanner: false,
+    );
+  }
+}
+>>>>>>> Stashed changes
