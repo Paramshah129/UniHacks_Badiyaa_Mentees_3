@@ -81,17 +81,26 @@ class ChatService {
 
   // Typing Status
   Future<void> updateTypingStatus(String teamId, bool isTyping) async {
-    final currentUser = _auth.currentUser!.uid;
-    await _firestore
-        .collection('teams')
-        .doc(teamId)
-        .collection('typingStatus')
-        .doc(currentUser)
-        .set({
-      'isTyping': isTyping,
-      'lastUpdated': FieldValue.serverTimestamp(),
-    });
-  }
+  final currentUser = _auth.currentUser!;
+  
+  final userDoc = await _firestore
+      .collection('users')
+      .doc(currentUser.uid)
+      .get();
+
+  final userData = userDoc.data();
+
+  await _firestore
+      .collection('teams')
+      .doc(teamId)
+      .collection('typingStatus')
+      .doc(currentUser.uid)
+      .set({
+    'isTyping': isTyping,
+    'senderName': userData?['nickname'] ?? userData?['fullName'] ?? "User",
+    'lastUpdated': FieldValue.serverTimestamp(),
+  });
+}
 
   Stream<QuerySnapshot> getTypingStatuses(String teamId) {
     return _firestore

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/bondbox_theme.dart';
-import '../games/telepathy_game.dart'; // ✅ ADD THIS
+import '../games/telepathy_game.dart';
+import '../games/desi_song.dart';  // ✅ ADD THIS
 
 class GamesScreen extends StatelessWidget {
   const GamesScreen({super.key});
@@ -103,11 +104,12 @@ class GamesScreen extends StatelessWidget {
         "screen": FestFiascoScreen(), // ✅ CONNECTED
       },
       {
-        "name": "Guess Who",
+        "name": "Desi Songs",
         "color": BondBoxColors.secondaryPink,
         "bg": const Color(0xFFFEE2E2),
         "icon": Icons.person_search_rounded,
         "pts": "+50 pts",
+        "screen": DesiSongTelepathyScreen(),
       },
       {
         "name": "Meme Battle",

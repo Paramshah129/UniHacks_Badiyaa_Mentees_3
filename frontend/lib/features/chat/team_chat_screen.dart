@@ -24,21 +24,26 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
   final ScrollController _scrollController = ScrollController();
   final String _currentUserId = FirebaseAuth.instance.currentUser!.uid;
 
-  void _sendMessage() {
-    if (_messageController.text.trim().isEmpty) return;
-    _chatService.sendTeamMessage(widget.teamId, _messageController.text.trim());
-    _messageController.clear();
-    // Scroll to bottom
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
+  void _sendMessage() async {
+  if (_messageController.text.trim().isEmpty) return;
+
+  await _chatService.sendTeamMessage(
+      widget.teamId, _messageController.text.trim());
+
+  _chatService.updateTypingStatus(widget.teamId, false);
+
+  _messageController.clear();
+
+  Future.delayed(const Duration(milliseconds: 100), () {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  });
+}
 
   @override
   Widget build(BuildContext context) {
@@ -58,7 +63,8 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
       ),
       body: Column(
         children: [
-          Expanded(
+          
+                        Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _chatService.getTeamMessages(widget.teamId),
               builder: (context, snapshot) {
@@ -180,6 +186,43 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
               },
             ),
           ),
+          StreamBuilder<QuerySnapshot>(
+  stream: FirebaseFirestore.instance
+      .collection('teams')
+      .doc(widget.teamId)
+      .collection('typingStatus')
+      .snapshots(),
+  builder: (context, snapshot) {
+    if (!snapshot.hasData) return const SizedBox();
+
+    final typingUsers = snapshot.data!.docs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      return doc.id != _currentUserId &&
+             data['isTyping'] == true;
+    }).toList();
+
+    if (typingUsers.isEmpty) return const SizedBox();
+
+    final names = typingUsers
+        .map((doc) =>
+            (doc.data() as Map<String, dynamic>)['senderName'] ?? "Someone")
+        .join(", ");
+
+    return Container(
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Text(
+        "$names is typing...",
+        style: const TextStyle(
+          fontSize: 16, // 🔥 bigger text
+          fontWeight: FontWeight.w600,
+          fontStyle: FontStyle.italic,
+          color: Colors.grey,
+        ),
+      ),
+    );
+  },
+),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
@@ -202,7 +245,13 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
                       ),
-                      onSubmitted: (_) => _sendMessage(),
+                      onChanged: (value) {
+                        _chatService.updateTypingStatus(widget.teamId, value.isNotEmpty);
+                      },
+                      onSubmitted: (_) {
+                        _chatService.updateTypingStatus(widget.teamId, false);
+                        _sendMessage();
+                      },
                     ),
                   ),
                   const SizedBox(width: 8),
