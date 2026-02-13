@@ -43,23 +43,32 @@ class ChatService {
 
   // --- Group (Team) Chat Logic ---
 
-  Future<void> sendTeamMessage(String teamId, String message, {bool isAnonymous = false}) async {
-    final currentUser = _auth.currentUser!.uid;
+ Future<void> sendTeamMessage(String teamId, String message) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
 
-    await _firestore
-        .collection('teams')
-        .doc(teamId)
-        .collection('messages')
-        .add({
-      'senderId': currentUser,
-      'text': message,
-      'timestamp': FieldValue.serverTimestamp(),
-      'isAnonymous': isAnonymous,
-      'type': 'text',
-      'seenBy': [currentUser],
-      'reactions': {},
-    });
-  }
+  // 🔥 Fetch user document from Firestore
+  final userDoc = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .get();
+
+  if (!userDoc.exists) return;
+
+  final userData = userDoc.data()!;
+
+  await FirebaseFirestore.instance
+      .collection('teams')
+      .doc(teamId)
+      .collection('messages')
+      .add({
+    'text': message,
+    'senderId': user.uid,
+    'senderName': userData['fullName'], // 🔥 using fullName
+    'senderAvatar': userData['photoUrl'],
+    'timestamp': FieldValue.serverTimestamp(),
+  });
+}
 
   Stream<QuerySnapshot> getTeamMessages(String teamId) {
     return _firestore
