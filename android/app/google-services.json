@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "274710880792",
+    "project_id": "unihacks-c5211",
+    "storage_bucket": "unihacks-c5211.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:274710880792:android:fde622ce98b3441074596d",
+        "android_client_info": {
+          "package_name": "com.bondbox.bondbox"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBZ5yPvNcMn-XI1LVUY_m9cnYchwPuFhgs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

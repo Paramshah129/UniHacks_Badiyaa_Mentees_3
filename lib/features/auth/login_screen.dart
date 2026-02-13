@@ -1,11 +1,65 @@
+
 import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../shared/widgets/shared_widgets.dart';
 import '../../core/theme/bondbox_theme.dart';
 import 'signup_screen.dart';
+import '../profile/profile_setup_screen.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  bool _isLoading = false;
+
+  Future<void> _login() async {
+    if (_emailController.text.isEmpty ||
+        _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please fill all fields")),
+      );
+      return;
+    }
+
+    try {
+      setState(() => _isLoading = true);
+
+      await _auth.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ProfileSetupScreen(),
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message ?? "Login failed")),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,14 +93,16 @@ class LoginScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 60),
                 FadeInLeft(
-                  child: const BondTextField(
+                  child: BondTextField(
+                    controller: _emailController,
                     hintText: "Email",
                     prefixIcon: Icons.email_rounded,
                   ),
                 ),
                 const SizedBox(height: 20),
                 FadeInRight(
-                  child: const BondTextField(
+                  child: BondTextField(
+                    controller: _passwordController,
                     hintText: "Password",
                     prefixIcon: Icons.lock_rounded,
                     obscureText: true,
@@ -55,9 +111,11 @@ class LoginScreen extends StatelessWidget {
                 const SizedBox(height: 40),
                 FadeInUp(
                   child: BondButton(
-                    text: "Login",
+                    text: _isLoading ? "Logging in..." : "Login",
                     onPressed: () {
-                      // Login Logic
+                      if (!_isLoading) {
+                        _login();
+                      }
                     },
                     color: Colors.white,
                     textColor: BondBoxTheme.softPurple,
@@ -76,7 +134,8 @@ class LoginScreen extends StatelessWidget {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 12),
                     ),
                   ),
                 ),
@@ -87,12 +146,15 @@ class LoginScreen extends StatelessWidget {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const SignupScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => const SignupScreen()),
                       );
                     },
                     child: const Text(
                       "New here? Create Account",
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
@@ -102,7 +164,9 @@ class LoginScreen extends StatelessWidget {
                     padding: EdgeInsets.only(bottom: 20),
                     child: Text(
                       "No fake vibes allowed. ✌️",
-                      style: TextStyle(color: Colors.white70, fontStyle: FontStyle.italic),
+                      style: TextStyle(
+                          color: Colors.white70,
+                          fontStyle: FontStyle.italic),
                     ),
                   ),
                 ),

@@ -1,10 +1,28 @@
 import 'package:flutter/material.dart';
-import 'features/onboarding/onboarding_screen.dart'; // adjust if needed
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'features/auth/login_screen.dart';
+import 'features/onboarding/onboarding_screen.dart';
 
-void main() {
-  runApp(const BondBoxApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  runApp(const MyApp());
 }
 
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: LoginScreen(),
+    );
+  }
+}
 class BondBoxApp extends StatelessWidget {
   const BondBoxApp({super.key});
 
@@ -16,7 +34,7 @@ class BondBoxApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
       ),
-      home: const OnboardingScreen(),
+      home: OnboardingScreen(),
     );
   }
 }
