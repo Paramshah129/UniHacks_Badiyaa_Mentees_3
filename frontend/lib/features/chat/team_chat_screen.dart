@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../service/chat_service.dart';
+import '../../service/leaderboard_service.dart';
 import '../../core/theme/bondbox_theme.dart';
 
 class TeamChatScreen extends StatefulWidget {
@@ -27,6 +28,10 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
   void _sendMessage() {
     if (_messageController.text.trim().isEmpty) return;
     _chatService.sendTeamMessage(widget.teamId, _messageController.text.trim());
+    
+    // Award XP for chatting
+    LeaderboardService().awardActivityPoints(_currentUserId, 'poll_vote'); // Reuse poll_vote (2 pts) or map new type
+
     _messageController.clear();
     // Scroll to bottom
     Future.delayed(const Duration(milliseconds: 100), () {
@@ -86,37 +91,95 @@ class _TeamChatScreenState extends State<TeamChatScreen> {
                     final data = docs[index].data() as Map<String, dynamic>;
                     final isMe = data['senderId'] == _currentUserId;
                     
-                    return Align(
-                      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-                        decoration: BoxDecoration(
-                          color: isMe ? BondBoxColors.primaryPurple : Colors.white,
-                          borderRadius: BorderRadius.only(
-                            topLeft: const Radius.circular(20),
-                            topRight: const Radius.circular(20),
-                            bottomLeft: isMe ? const Radius.circular(20) : const Radius.circular(4),
-                            bottomRight: isMe ? const Radius.circular(4) : const Radius.circular(20),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 5,
-                              offset: const Offset(0, 2),
-                            )
+                    return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment:
+                              isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                          children: [
+                            // 👤 Avatar (Only show for others)
+                            if (!isMe)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: CircleAvatar(
+                                  radius: 18,
+                                  backgroundImage: data['senderAvatar'] != null
+                                      ? NetworkImage(data['senderAvatar'])
+                                      : null,
+                                  backgroundColor: BondBoxColors.primaryPurple.withOpacity(0.2),
+                                  child: data['senderAvatar'] == null
+                                      ? Text(
+                                          (data['senderName'] ?? "U")[0].toUpperCase(),
+                                          style: const TextStyle(
+                                              color: BondBoxColors.primaryPurple,
+                                              fontWeight: FontWeight.bold),
+                                        )
+                                      : null,
+                                ),
+                              ),
+
+                            // 💬 Message Bubble + Name
+                            Column(
+                              crossAxisAlignment:
+                                  isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                              children: [
+                                if (!isMe)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 4),
+                                    child: Text(
+                                      data['senderName'] ?? "Unknown",
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ),
+
+                                Container(
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  constraints: BoxConstraints(
+                                      maxWidth:
+                                          MediaQuery.of(context).size.width * 0.65),
+                                  decoration: BoxDecoration(
+                                    color: isMe
+                                        ? BondBoxColors.primaryPurple
+                                        : Colors.white,
+                                    borderRadius: BorderRadius.only(
+                                      topLeft: const Radius.circular(20),
+                                      topRight: const Radius.circular(20),
+                                      bottomLeft: isMe
+                                          ? const Radius.circular(20)
+                                          : const Radius.circular(4),
+                                      bottomRight: isMe
+                                          ? const Radius.circular(4)
+                                          : const Radius.circular(20),
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 5,
+                                        offset: const Offset(0, 2),
+                                      )
+                                    ],
+                                  ),
+                                  child: Text(
+                                    data['text'] ?? "",
+                                    style: TextStyle(
+                                      color: isMe
+                                          ? Colors.white
+                                          : BondBoxColors.textPrimary,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ],
                         ),
-                        child: Text(
-                          data['text'] ?? "",
-                          style: TextStyle(
-                            color: isMe ? Colors.white : BondBoxColors.textPrimary,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    );
+                      );
                   },
                 );
               },

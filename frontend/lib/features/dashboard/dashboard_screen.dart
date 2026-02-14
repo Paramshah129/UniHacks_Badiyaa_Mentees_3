@@ -4,6 +4,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/theme/bondbox_theme.dart';
 import '../../service/team_service.dart';
 import '../chat/team_chat_screen.dart';
+import '../leaderboard/leaderboard_screen.dart';
+import '../capsules/capsule_list_screen.dart';
+import '../memories/memory_collection_screen.dart';
+import '../../service/memory_service.dart';
+import '../memories/memory_detail_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -14,6 +19,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final TeamService _teamService = TeamService();
+  final MemoryService _memoryService = MemoryService();
   final TextEditingController _crewCodeController = TextEditingController();
   bool _isJoining = false;
 
@@ -143,13 +149,68 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(height: 16),
                       _buildGamesSection(context),
                       const SizedBox(height: 32),
-                      _buildSectionHeader(context, "Time Capsules"),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildSectionHeader(context, "Time Capsules"),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => CapsuleListScreen(groupId: teamId),
+                                ),
+                              );
+                            },
+                            child: const Text('View All', style: TextStyle(color: BondBoxColors.primaryPurple)),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 16),
-                      _buildTimeCapsulesSection(context),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CapsuleListScreen(groupId: teamId),
+                            ),
+                          );
+                        },
+                        child: _buildTimeCapsulesSection(context),
+                      ),
                       const SizedBox(height: 32),
-                      _buildSectionHeader(context, "Memory Vault"),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildSectionHeader(context, "Memory Vault"),
+                          if (teamId != null)
+                            TextButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => MemoryCollectionScreen(groupId: teamId),
+                                  ),
+                                );
+                              },
+                              child: const Text('View All', style: TextStyle(color: BondBoxColors.primaryPurple)),
+                            ),
+                        ],
+                      ),
                       const SizedBox(height: 16),
-                      _buildMemoryVaultSection(context),
+                      GestureDetector(
+                        onTap: () {
+                          if (teamId != null) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => MemoryCollectionScreen(groupId: teamId),
+                              ),
+                            );
+                          }
+                        },
+                        child: _buildMemoryVaultSection(context),
+                      ),
                       const SizedBox(height: 40),
                     ],
                   ),
@@ -325,11 +386,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
           style: Theme.of(context).textTheme.titleLarge,
         ),
         if (title == "Games")
-          const Row(
-            children: [
-              Text("Rank", style: TextStyle(color: Colors.grey, fontSize: 12)),
-              Icon(Icons.keyboard_arrow_down, color: Colors.grey, size: 16),
-            ],
+           GestureDetector(
+            onTap: () {
+               // Navigate to Leaderboard
+               final user = FirebaseAuth.instance.currentUser;
+               FirebaseFirestore.instance.collection('users').doc(user?.uid).get().then((doc) {
+                   final teamId = doc.data()?['currentTeamId'];
+                   if (teamId != null) {
+                       Navigator.push(context, MaterialPageRoute(builder: (_) => LeaderboardScreen(teamId: teamId)));
+                   } else {
+                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Join a crew to see the leaderboard!")));
+                   }
+               });
+            },
+            child: const Row(
+              children: [
+                Text("Rank", style: TextStyle(color: BondBoxColors.primaryPurple, fontSize: 12, fontWeight: FontWeight.bold)),
+                Icon(Icons.leaderboard_rounded, color: BondBoxColors.primaryPurple, size: 16),
+              ],
+            ),
           ),
       ],
     );
@@ -602,192 +677,328 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildTimeCapsulesSection(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              "Time Capsules",
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return const SizedBox.shrink();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('capsules')
+          .where('createdBy', isEqualTo: userId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return const SizedBox.shrink();
+        }
+
+        final allDocs = snapshot.data?.docs ?? [];
+        // Sort client-side by unlockDate
+        allDocs.sort((a, b) {
+          final aDate = (a.data() as Map<String, dynamic>)['unlockDate'] as Timestamp?;
+          final bDate = (b.data() as Map<String, dynamic>)['unlockDate'] as Timestamp?;
+          if (aDate == null || bDate == null) return 0;
+          return aDate.compareTo(bDate);
+        });
+        final capsules = allDocs.take(2).toList();
+
+        if (capsules.isEmpty) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(32),
+              boxShadow: [
+                BoxShadow(
+                  color: BondBoxColors.primaryPurple.withOpacity(0.05),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Column(
+              children: [
+                Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey[300]),
+                const SizedBox(height: 12),
+                Text('No capsules yet', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey[600])),
+                const SizedBox(height: 4),
+                Text('Create your first time capsule!', style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+              ],
+            ),
+          );
+        }
+
+        return Column(
+          children: capsules.map((capsule) {
+            final data = capsule.data() as Map<String, dynamic>;
+            final title = data['title'] ?? 'Untitled Capsule';
+            final unlockDate = (data['unlockDate'] as Timestamp).toDate();
+            final isUnlocked = data['isUnlocked'] ?? false;
+            final contributors = List<String>.from(data['contributors'] ?? []);
+            final now = DateTime.now();
+            final shouldUnlock = now.isAfter(unlockDate);
+
+            String countdownText;
+            if (shouldUnlock || isUnlocked) {
+              countdownText = '✨ Unlocked!';
+            } else {
+              final diff = unlockDate.difference(now);
+              if (diff.inDays > 0) {
+                countdownText = 'Unlocks in ${diff.inDays} day${diff.inDays == 1 ? '' : 's'}';
+              } else if (diff.inHours > 0) {
+                countdownText = 'Unlocks in ${diff.inHours} hour${diff.inHours == 1 ? '' : 's'}';
+              } else {
+                countdownText = 'Unlocking soon...';
+              }
+            }
+
+            return Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFFD1FAE5),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.add_rounded, size: 16, color: Color(0xFF065F46)),
-                  SizedBox(width: 4),
-                  Text(
-                    "Create Capsule",
-                    style: TextStyle(
-                      color: Color(0xFF065F46),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(32),
+                boxShadow: [
+                  BoxShadow(
+                    color: BondBoxColors.primaryPurple.withOpacity(0.05),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(32),
-            boxShadow: [
-              BoxShadow(
-                color: BondBoxColors.primaryPurple.withOpacity(0.05),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 80,
-                height: 100,
-                decoration: BoxDecoration(
-                  color: BondBoxColors.accentBlue.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Center(
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Icon(Icons.liquor_rounded, size: 60, color: BondBoxColors.accentBlue.withOpacity(0.3)),
-                      const Icon(Icons.lock_rounded, size: 24, color: Colors.orange),
-                    ],
+              child: Row(
+                children: [
+                  Container(
+                    width: 70,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      color: (shouldUnlock || isUnlocked)
+                          ? Colors.amber.withOpacity(0.1)
+                          : BondBoxColors.accentBlue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Center(
+                      child: Text(
+                        (shouldUnlock || isUnlocked) ? '📦' : '🔒',
+                        style: const TextStyle(fontSize: 32),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Summer Daze '24",
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      "Unlocks in 3 weeks",
-                      style: TextStyle(color: BondBoxColors.textSecondary, fontSize: 14),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        SizedBox(
-                          width: 45,
-                          child: Stack(
+                        Text(
+                          title,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          countdownText,
+                          style: TextStyle(
+                            color: (shouldUnlock || isUnlocked) ? Colors.green : BondBoxColors.textSecondary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        if (contributors.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Row(
                             children: [
-                              const CircleAvatar(
-                                radius: 10,
-                                backgroundImage: NetworkImage("https://i.pravatar.cc/150?u=a"),
-                              ),
-                              Positioned(
-                                left: 14,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 2),
-                                  ),
-                                  child: const CircleAvatar(
+                              ...contributors.take(3).map((uid) {
+                                return Container(
+                                  margin: const EdgeInsets.only(right: 4),
+                                  child: CircleAvatar(
                                     radius: 10,
-                                    backgroundImage: NetworkImage("https://i.pravatar.cc/150?u=b"),
+                                    backgroundImage: NetworkImage('https://i.pravatar.cc/150?u=$uid'),
+                                    backgroundColor: Colors.white,
                                   ),
+                                );
+                              }),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[100],
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '${contributors.length} friend${contributors.length == 1 ? '' : 's'} contributed',
+                                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: BondBoxColors.textSecondary),
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Text(
-                            "3 friends contributed",
-                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: BondBoxColors.textSecondary),
-                          ),
-                        ),
+                        ],
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-      ],
+            );
+          }).toList(),
+        );
+      },
     );
   }
 
   Widget _buildMemoryVaultSection(BuildContext context) {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return const SizedBox.shrink();
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFFFDF2F8), // Soft pink background like reference
         borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: Colors.white, width: 2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.pink.withOpacity(0.05),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
         ],
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Left Side: Image Grid
-          Expanded(
-            flex: 3,
-            child: GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              mainAxisSpacing: 8,
-              crossAxisSpacing: 8,
-              childAspectRatio: 1,
-              children: List.generate(6, (index) => ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  "https://picsum.photos/200/200?sig=$index",
-                  fit: BoxFit.cover,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "This Week's Recaps",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF831843),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Shareable Moments with Your Crew",
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: const Color(0xFFBE185D).withOpacity(0.7),
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              )),
+                child: const Icon(Icons.inventory_2_outlined, color: Color(0xFFBE185D), size: 20),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          
+          // Horizontal List of Memory Collections
+          SizedBox(
+            height: 220,
+            child: StreamBuilder<List<DocumentSnapshot>>(
+              stream: _memoryService.getMemoryCollections('dummy_group_id'), // Queries by user ID internally now
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                
+                final collections = snapshot.data ?? [];
+                
+                if (collections.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.photo_library_outlined, size: 40, color: Colors.pink[200]),
+                        const SizedBox(height: 8),
+                        Text(
+                          "No memories yet",
+                          style: TextStyle(color: Colors.pink[300]),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: collections.length,
+                  itemBuilder: (context, index) {
+                    final collection = collections[index];
+                    final data = collection.data() as Map<String, dynamic>;
+                    return _buildMemoryCollectionCard(context, collection.id, data);
+                  },
+                );
+              },
             ),
           ),
-          const SizedBox(width: 24),
-          // Right Side: Top Memories List
-          Expanded(
-            flex: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Top Memories",
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          
+          const SizedBox(height: 20),
+          
+          // Create Button
+          GestureDetector(
+            onTap: () {
+               // Initial navigation to collection screen to create new
+               // In a real app we might open the dialog directly
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MemoryCollectionScreen(groupId: 'personal'),
+                  ),
+                );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFF472B6), Color(0xFFBE185D)], // Pink gradient
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
                 ),
-                const SizedBox(height: 16),
-                _buildMemoryTile("Pixel_Pioneer_99", Icons.favorite_rounded, Colors.pinkAccent),
-                _buildMemoryTile("Pixel_Pioneer_99", Icons.favorite_rounded, Colors.pinkAccent),
-                _buildMemoryTile("SarcasmQuen_22", Icons.star_rounded, Colors.orange),
-                _buildMemoryTile("SarcasmQueen22", Icons.sentiment_very_satisfied_rounded, Colors.yellow[700]!),
-                _buildMemoryTile("Senlrig 15 toes", Icons.star_rounded, Colors.orange),
-              ],
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFBE185D).withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.add, color: Color(0xFFBE185D), size: 16),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    "Create New Memory Capsule",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -795,25 +1006,117 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildMemoryTile(String name, IconData emojiIcon, Color iconColor) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 14,
-            backgroundImage: NetworkImage("https://i.pravatar.cc/150?u=$name"),
+  Widget _buildMemoryCollectionCard(BuildContext context, String collectionId, Map<String, dynamic> data) {
+    final name = data['name'] ?? 'Untitled';
+    
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MemoryDetailScreen(collectionId: collectionId),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              name,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: BondBoxColors.textPrimary),
+        );
+      },
+      child: Container(
+        width: 160,
+        margin: const EdgeInsets.only(right: 16),
+        child: Column(
+          children: [
+            // Photo Grid Container
+            Container(
+              height: 160,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(4),
+              child: StreamBuilder<List<DocumentSnapshot>>(
+                stream: _memoryService.getMemories(collectionId),
+                builder: (context, snapshot) {
+                  final memories = snapshot.data ?? [];
+                  final photoMemories = memories
+                      .where((doc) {
+                        final d = doc.data() as Map<String, dynamic>;
+                        return d['mediaUrl'] != null && d['mediaUrl'].toString().isNotEmpty;
+                      })
+                      .take(4)
+                      .toList();
+                  
+                  if (photoMemories.isEmpty) {
+                     return Container(
+                       decoration: BoxDecoration(
+                         color: Colors.grey[100],
+                         borderRadius: BorderRadius.circular(16),
+                       ),
+                       child: Center(
+                         child: Icon(Icons.image_not_supported_outlined, color: Colors.grey[300], size: 30),
+                       ),
+                     );
+                  }
+
+                  // 2x2 Grid logic
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              _buildGridImage(photoMemories.isNotEmpty ? (photoMemories[0].data() as Map<String, dynamic>)['mediaUrl'] : null),
+                              const SizedBox(width: 2),
+                              _buildGridImage(photoMemories.length > 1 ? (photoMemories[1].data() as Map<String, dynamic>)['mediaUrl'] : null),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              _buildGridImage(photoMemories.length > 2 ? (photoMemories[2].data() as Map<String, dynamic>)['mediaUrl'] : null),
+                              const SizedBox(width: 2),
+                              _buildGridImage(photoMemories.length > 3 ? (photoMemories[3].data() as Map<String, dynamic>)['mediaUrl'] : null),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
-          Icon(emojiIcon, size: 14, color: iconColor),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              name,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Color(0xFF831843),
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGridImage(String? url) {
+    return Expanded(
+      child: Container(
+        color: Colors.grey[100],
+        child: url != null
+            ? Image.network(url, fit: BoxFit.cover, width: double.infinity, height: double.infinity)
+            : Container(), // Empty placeholder
       ),
     );
   }

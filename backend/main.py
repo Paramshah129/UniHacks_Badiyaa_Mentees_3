@@ -12,8 +12,14 @@ def on_user_created(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | No
         return
         
     user_data = event.data.to_dict()
-    referrer_id = user_data.get("referredBy")
-    
+    # Award starting points to the new user
+    user_ref = db.collection("users").document(event.params["userId"])
+    user_ref.update({
+        "totalPoints": firestore.Increment(200),
+        "weeklyPoints": firestore.Increment(200),
+        "lastActive": firestore.SERVER_TIMESTAMP
+    })
+
     if referrer_id:
         referrer_ref = db.collection("users").document(referrer_id)
         
@@ -116,3 +122,88 @@ def check_time_capsules(event: pubsub_fn.ScheduledEvent) -> None:
             
     batch.commit()
     print(f"Unlocked {len(capsules)} time capsules.")
+
+# 5. Callable: Award Points for Client Actions (Polls, Games, etc.)
+@https_fn.on_call()
+def award_activity_points(req: https_fn.CallableRequest) -> dict:
+    """
+    Securely awards points for client-side activities.
+    Requires authentication.
+    """
+    if not req.auth:
+        raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.UNAUTHENTICATED, message="User must be logged in.")
+
+    uid = req.auth.uid
+    data = req.data
+    activity_type = data.get("type")
+    
+    # Point values
+    POINTS_MAP = {
+        "poll_vote": 2,
+        "mini_game_win": 15,
+        "daily_prompt": 5,
+        "capsule_create": 10,
+        "streak_7_day": 25
+    }
+    
+    points = POINTS_MAP.get(activity_type)
+    if not points:
+         raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT, message="Invalid activity type.")
+
+    user_ref = db.collection("users").document(uid)
+    
+    user_ref.update({
+        "totalPoints": firestore.Increment(points),
+        "weeklyPoints": firestore.Increment(points),
+        "lastActive": firestore.SERVER_TIMESTAMP
+    })
+    
+    return {"success": True, "points_awarded": points}
+
+# HTTP Callable: Initialize Points for All Users
+@https_fn.on_call()
+def initialize_all_user_points(req: https_fn.CallableRequest) -> dict:
+    """
+    One-time function to add weeklyPoints and totalPoints to all existing users
+    who don't have these fields yet.
+    """
+    try:
+        users_ref = db.collection('users')
+        users = users_ref.stream()
+        
+        updated_count = 0
+        skipped_count = 0
+        
+        for user in users:
+            user_data = user.to_dict()
+            user_id = user.id
+            
+            # Check if points fields are missing
+            needs_update = {}
+            
+            if 'weeklyPoints' not in user_data:
+                needs_update['weeklyPoints'] = 0
+                
+            if 'totalPoints' not in user_data:
+                needs_update['totalPoints'] = 200  # Starting bonus
+            
+            if needs_update:
+                users_ref.document(user_id).update(needs_update)
+                updated_count += 1
+                print(f"✅ Updated user {user_id}: {needs_update}")
+            else:
+                skipped_count += 1
+        
+        return {
+            "success": True,
+            "message": f"Initialized points for {updated_count} users (skipped {skipped_count} users who already had points)",
+            "updated": updated_count,
+            "skipped": skipped_count
+        }
+        
+    except Exception as e:
+        print(f"Error initializing points: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }

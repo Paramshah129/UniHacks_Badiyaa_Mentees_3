@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/bondbox_theme.dart';
+import '../../service/leaderboard_service.dart';
 
 class GamesScreen extends StatelessWidget {
   const GamesScreen({super.key});
@@ -20,7 +22,7 @@ class GamesScreen extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            _buildActiveBattle(),
+            _buildActiveBattle(context),
             const SizedBox(height: 32),
             _buildGamesGrid(context),
           ],
@@ -29,7 +31,7 @@ class GamesScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildActiveBattle() {
+  Widget _buildActiveBattle(BuildContext context) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -55,7 +57,15 @@ class GamesScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           ElevatedButton(
-            onPressed: () {},
+            onPressed: () {
+                final uid = FirebaseAuth.instance.currentUser?.uid;
+                if (uid != null) {
+                    LeaderboardService().awardActivityPoints(uid, 'mini_game_win');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Joined Battle! (+15 XP)"), backgroundColor: BondBoxColors.primaryPurple)
+                    );
+                }
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: BondBoxColors.primaryPurple,

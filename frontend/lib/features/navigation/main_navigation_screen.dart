@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../feed/feed_screen.dart';
 import '../games/games_screen.dart';
-import '../capsules/capsule_screen.dart';
+import '../capsules/capsule_list_screen.dart';
 import '../leaderboard/leaderboard_screen.dart';
 import '../profile/profile_screen.dart';
 import '../../core/theme/bondbox_theme.dart';
@@ -16,21 +18,40 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
+  String? _teamId;
 
-  final List<Widget> _screens = [
-    const DashboardScreen(),
-    const LeaderboardScreen(),
-    const GamesScreen(),
-    const CapsuleScreen(),
-    const ProfileScreen(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserTeam();
+  }
+
+  Future<void> _fetchUserTeam() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (mounted) {
+        setState(() {
+          _teamId = doc.data()?['currentTeamId'];
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,
-        children: _screens,
+        children: [
+          const DashboardScreen(),
+          _teamId != null 
+              ? LeaderboardScreen(teamId: _teamId!) 
+              : const Center(child: Text("Join a crew to see the leaderboard!")),
+          const GamesScreen(),
+          CapsuleListScreen(groupId: _teamId),
+          const ProfileScreen(),
+        ],
       ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -61,7 +82,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   Widget _buildNavItem(int index, IconData icon, String label) {
     final isSelected = _selectedIndex == index;
     return GestureDetector(
-      onTap: () => setState(() => _selectedIndex = index),
+      onTap: () {
+        setState(() => _selectedIndex = index);
+        if (index == 1) _fetchUserTeam(); // Refresh team ID when tapping Leaderboard
+      },
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
