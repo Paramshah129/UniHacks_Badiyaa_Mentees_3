@@ -1,9 +1,56 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/bondbox_theme.dart';
-import '../navigation/main_navigation_screen.dart';
+import '../../shared/widgets/shared_widgets.dart';
+import '../auth/add_friends.dart';
 
-class ProfileSetupScreen extends StatelessWidget {
+class ProfileSetupScreen extends StatefulWidget {
   const ProfileSetupScreen({super.key});
+
+  @override
+  State<ProfileSetupScreen> createState() => _ProfileSetupScreenState();
+}
+
+class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
+  final TextEditingController _bioController = TextEditingController();
+
+  String? _selectedAvatar;
+
+  final List<String> _avatars = [
+    "assets/avatars/avatar1.jpeg",
+    "assets/avatars/avatar2.jpeg",
+    "assets/avatars/avatar3.jpeg",
+    "assets/avatars/avatar4.jpeg",
+    "assets/avatars/avatar5.jpeg",
+    "assets/avatars/avatar6.jpeg",
+    "assets/avatars/avatar7.jpeg",
+    "assets/avatars/avatar8.jpeg",
+  ];
+
+  Future<void> _saveProfile() async {
+    if (_selectedAvatar == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please select an avatar")),
+      );
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user!.uid)
+        .update({
+      'bio': _bioController.text.trim(),
+      'avatar': _selectedAvatar,
+    });
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const AddFriendScreen()),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,35 +63,38 @@ class ProfileSetupScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Profile Vibe",
+                "Profile Setup",
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 12),
               Text(
-                "Define your presence in the crew.",
+                "Choose your avatar and write your bio.",
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: BondBoxColors.textSecondary,
                 ),
               ),
               const SizedBox(height: 48),
+
+              // 🔹 Bio Field
               _buildBioField(),
+
               const SizedBox(height: 48),
+
               const Text(
-                "Select your Vibe",
+                "Choose your Avatar",
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
+
               const SizedBox(height: 20),
-              _buildVibeGrid(),
+
+              _buildAvatarGrid(),
+
               const SizedBox(height: 60),
+
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
-                    );
-                  },
+                  onPressed: _saveProfile,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: BondBoxColors.primaryPurple,
                     foregroundColor: Colors.white,
@@ -54,7 +104,11 @@ class ProfileSetupScreen extends StatelessWidget {
                     ),
                     elevation: 0,
                   ),
-                  child: const Text("Launch Experience", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  child: const Text(
+                    "Launch Experience",
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
                 ),
               ),
             ],
@@ -74,6 +128,7 @@ class ProfileSetupScreen extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         TextField(
+          controller: _bioController,
           maxLines: 3,
           decoration: InputDecoration(
             hintText: "What's your deal?",
@@ -90,42 +145,41 @@ class ProfileSetupScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildVibeGrid() {
-    final vibes = [
-      {"name": "Chaos", "icon": Icons.bolt_rounded, "color": BondBoxColors.primaryPurple},
-      {"name": "Chill", "icon": Icons.eco_rounded, "color": BondBoxColors.accentBlue},
-      {"name": "Hype", "icon": Icons.auto_awesome_rounded, "color": BondBoxColors.secondaryPink},
-      {"name": "Dank", "icon": Icons.mood_rounded, "color": Colors.orange},
-    ];
-
+  Widget _buildAvatarGrid() {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
+        crossAxisCount: 3,
         mainAxisSpacing: 16,
         crossAxisSpacing: 16,
-        childAspectRatio: 2.5,
       ),
-      itemCount: vibes.length,
+      itemCount: _avatars.length,
       itemBuilder: (context, index) {
-        final vibe = vibes[index];
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: (vibe['color'] as Color).withOpacity(0.1)),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              Icon(vibe['icon'] as IconData, color: vibe['color'] as Color, size: 20),
-              const SizedBox(width: 12),
-              Text(
-                vibe['name'] as String,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+        final avatar = _avatars[index];
+        final isSelected = _selectedAvatar == avatar;
+
+        return GestureDetector(
+          onTap: () {
+            setState(() {
+              _selectedAvatar = avatar;
+            });
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isSelected
+                    ? BondBoxColors.primaryPurple
+                    : Colors.transparent,
+                width: 3,
               ),
-            ],
+            ),
+            padding: const EdgeInsets.all(4),
+            child: BondAvatar(
+              radius: 40,
+              imageUrl: avatar,
+            ),
           ),
         );
       },

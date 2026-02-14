@@ -81,3 +81,43 @@ class BondTextField extends StatelessWidget {
   }
 }
 
+class BondAvatar extends StatelessWidget {
+  final String? imageUrl;
+  final double radius;
+  final Border? border;
+
+  const BondAvatar({
+    super.key,
+    this.imageUrl,
+    this.radius = 20,
+    this.border,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    ImageProvider? imageProvider;
+
+    if (imageUrl != null && imageUrl!.isNotEmpty) {
+      if (imageUrl!.startsWith('assets/')) {
+        imageProvider = AssetImage(imageUrl!);
+      } else {
+        imageProvider = NetworkImage(imageUrl!);
+      }
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: border,
+      ),
+      child: CircleAvatar(
+        radius: radius,
+        backgroundColor: BondBoxColors.lavender,
+        backgroundImage: imageProvider,
+        child: imageProvider == null
+            ? Icon(Icons.person, size: radius, color: BondBoxColors.softPurple)
+            : null,
+      ),
+    );
+  }
+}

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/theme/bondbox_theme.dart';
+import '../../shared/widgets/shared_widgets.dart';
 import '../../service/leaderboard_service.dart';
 
 class LeaderboardScreen extends StatefulWidget {
@@ -271,9 +272,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               children: [
                   Row(
                       children: [
-                          CircleAvatar(
+                          BondAvatar(
                               radius: 25,
-                              backgroundImage: NetworkImage("https://i.pravatar.cc/150?u=$currentUserId"),
+                              imageUrl: data?['avatar'],
                           ),
                           const SizedBox(width: 16),
                           Column(
@@ -365,8 +366,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     ),
                 ),
                 const SizedBox(width: 16),
-                CircleAvatar(
-                    backgroundImage: NetworkImage("https://i.pravatar.cc/150?u=${data['nickname']}"),
+                BondAvatar(
+                    imageUrl: data['avatar'],
                 ),
                 const SizedBox(width: 16),
                 Expanded(

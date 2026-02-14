@@ -15,6 +15,10 @@ class MemoryService {
   Future<String> createMemoryCollection({
     required String groupId,
     required String name,
+    required String category,
+    required String mood,
+    required bool isPrivate,
+    DateTime? date,
   }) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) throw Exception('User not authenticated');
@@ -22,8 +26,11 @@ class MemoryService {
     final collectionData = {
       'groupId': groupId,
       'name': name,
+      'category': category,
+      'mood': mood,
+      'isPrivate': isPrivate,
       'createdBy': uid,
-      'createdAt': FieldValue.serverTimestamp(),
+      'createdAt': date != null ? Timestamp.fromDate(date) : FieldValue.serverTimestamp(),
       'contributors': [uid],
     };
 
@@ -76,6 +83,14 @@ class MemoryService {
     // Award XP for adding memory
     await LeaderboardService().awardActivityPoints(uid, 'memory_add');
 
+    // 🌟 UNIQUE UPDATE: If this memory has an image, update the parent collection's coverUrl!
+    // This allows the Calendar to show a preview without querying subcollections.
+    if (mediaUrl != null && mediaUrl.isNotEmpty) {
+       await _firestore.collection('memory_collections').doc(collectionId).update({
+         'coverUrl': mediaUrl, 
+       });
+    }
+
     return docRef.id;
   }
 
@@ -94,6 +109,35 @@ class MemoryService {
             return aDate.compareTo(bDate);
           });
           return docs;
+        });
+  }
+
+  /// Get "On This Day" throwbacks from previous years
+  Stream<List<DocumentSnapshot>> getThrowbackMemories() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return Stream.value([]);
+
+    final now = DateTime.now();
+    
+    // Note: Firestore doesn't support month/day filtering directly without stored fields or local filtering.
+    // For this demo, we'll fetch collections where user is a contributor and filter locally.
+    // In a production app, you'd store 'month' and 'day' as separate fields for efficient querying.
+    return _firestore
+        .collection('memory_collections')
+        .where('contributors', arrayContains: uid)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.where((doc) {
+            final data = doc.data();
+            final createdAt = data['createdAt'] as Timestamp?;
+            if (createdAt == null) return false;
+            
+            final date = createdAt.toDate();
+            // Check if same day/month but different year
+            return date.month == now.month && 
+                   date.day == now.day && 
+                   date.year < now.year;
+          }).toList();
         });
   }
 

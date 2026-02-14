@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../shared/widgets/shared_widgets.dart';
 import '../../core/theme/bondbox_theme.dart';
+import '../../service/user_service.dart';
 import 'signup_screen.dart';
 import '../profile/profile_setup_screen.dart';
 
@@ -20,8 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-
+  final UserService _userService = UserService();
   bool _isLoading = false;
 
   Future<void> _login() async {
@@ -36,15 +36,10 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       setState(() => _isLoading = true);
 
-      final userCredential = await _auth.signInWithEmailAndPassword(
+      await _userService.login(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
-
-      // Initialize points if they don't exist
-      if (userCredential.user != null) {
-        await _initializeUserPoints(userCredential.user!.uid);
-      }
 
       Navigator.pushReplacement(
         context,
@@ -52,48 +47,12 @@ class _LoginScreenState extends State<LoginScreen> {
           builder: (_) => const ProfileSetupScreen(),
         ),
       );
-    } on FirebaseAuthException catch (e) {
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? "Login failed")),
+        SnackBar(content: Text(e.toString())),
       );
     } finally {
       setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _initializeUserPoints(String userId) async {
-    try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
-
-      if (userDoc.exists) {
-        final data = userDoc.data();
-        final updates = <String, dynamic>{};
-
-        // Add weeklyPoints if missing
-        if (data?['weeklyPoints'] == null) {
-          updates['weeklyPoints'] = 0;
-        }
-
-        // Add totalPoints if missing (200 starting bonus)
-        if (data?['totalPoints'] == null) {
-          updates['totalPoints'] = 200;
-        }
-
-        // Only update if there are missing fields
-        if (updates.isNotEmpty) {
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(userId)
-              .update(updates);
-          print('✅ Initialized points for user $userId: $updates');
-        }
-      }
-    } catch (e) {
-      print('Error initializing points: $e');
-      // Don't block login if this fails
     }
   }
 

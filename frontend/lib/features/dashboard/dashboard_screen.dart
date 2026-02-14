@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../core/theme/bondbox_theme.dart';
+import 'package:animate_do/animate_do.dart';
+import 'package:friendsconnect/core/theme/bondbox_theme.dart';
+import '../../shared/widgets/shared_widgets.dart';
 import '../../service/team_service.dart';
+import '../../service/memory_service.dart';
 import '../chat/team_chat_screen.dart';
 import '../leaderboard/leaderboard_screen.dart';
 import '../capsules/capsule_list_screen.dart';
 import '../memories/memory_collection_screen.dart';
-import '../../service/memory_service.dart';
 import '../memories/memory_detail_screen.dart';
+import '../memories/widgets/mini_calendar.dart';
+import '../rewards/rewards_screen.dart';
+import 'daily_poll_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -22,6 +27,149 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final MemoryService _memoryService = MemoryService();
   final TextEditingController _crewCodeController = TextEditingController();
   bool _isJoining = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Check for throwbacks after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndShowThrowbackPopup();
+    });
+  }
+
+  Future<void> _checkAndShowThrowbackPopup() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    final teamId = userDoc.data()?['currentTeamId'] as String?;
+
+    // We'll use the service to get throwbacks once
+    final throwbacks = await _memoryService.getThrowbackMemories().first;
+    if (throwbacks.isNotEmpty && mounted) {
+      final data = throwbacks.first.data() as Map<String, dynamic>;
+      _showThrowbackDialog(data, teamId);
+    }
+  }
+
+  void _showThrowbackDialog(Map<String, dynamic> data, String? teamId) {
+    final createdAt = (data['createdAt'] as Timestamp).toDate();
+    final yearDiff = DateTime.now().year - createdAt.year;
+    final dateString = "${createdAt.day}/${createdAt.month}/${createdAt.year}";
+
+    showDialog(
+      context: context,
+      builder: (context) => FadeInUp(
+        child: Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Polaroid Frame Style
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Stack(
+                        children: [
+                          Image.network(
+                            data['coverUrl'] ?? "https://picsum.photos/400/300",
+                            height: 300,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          ),
+                          // Date Stamp in corner
+                          Positioned(
+                            bottom: 15,
+                            right: 15,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                dateString,
+                                style: const TextStyle(
+                                  color: Color(0xFFFFA500),
+                                  fontFamily: 'Courier', // Retro feel
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Text(
+                          data['name'] ?? "A Special Memory",
+                          style: const TextStyle(
+                            fontFamily: 'Caveat', // Handwritten feel if available
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  "✨ It's been $yearDiff ${yearDiff > 1 ? "years" : "year"}! ✨",
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: BondBoxColors.primaryPurple),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  "Reliving this moment today...",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    if (teamId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => MemoryCollectionScreen(groupId: teamId),
+                        ),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Join a crew to view memories!")),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: BondBoxColors.primaryPurple,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text("View in Vault", style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -113,16 +261,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return const Scaffold(body: Center(child: Text("Please Login")));
+    }
 
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('users').doc(user?.uid).snapshots(),
+      stream: FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
       builder: (context, userSnapshot) {
+        if (userSnapshot.hasError) {
+          return Scaffold(body: Center(child: Text("Error: ${userSnapshot.error}")));
+        }
+        if (userSnapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+
         final userData = userSnapshot.data?.data() as Map<String, dynamic>?;
         final teamId = userData?['currentTeamId'] as String?;
 
         return StreamBuilder<DocumentSnapshot>(
           stream: teamId != null ? _teamService.getTeamStream(teamId) : null,
           builder: (context, teamSnapshot) {
+            if (teamId != null && teamSnapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+            }
+
             final teamData = teamSnapshot.data?.data() as Map<String, dynamic>?;
 
             return Scaffold(
@@ -135,20 +297,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     children: [
                       const SizedBox(height: 10),
                       _buildTopBar(context, userData, teamData),
+                      const SizedBox(height: 16),
+                      
+                      // On This Day (Throwback)
+                      _buildThrowbackSection(context),
+                      
                       const SizedBox(height: 24),
-                      _buildRedeemSection(context),
+                      
+                      // 1. Today's Highlight
+                      _buildHighlightCard(context, teamId),
                       const SizedBox(height: 24),
+
+                      // 2. Group Chat
                       if (teamId == null)
                         _buildJoinCrewSection(context)
                       else
                         _buildCurrentTeamCard(context, teamData, teamId),
                       const SizedBox(height: 24),
-                      _buildHighlightCard(context),
-                      const SizedBox(height: 32),
+
+                      // 3. Games
                       _buildSectionHeader(context, "Games"),
                       const SizedBox(height: 16),
                       _buildGamesSection(context),
                       const SizedBox(height: 32),
+
+                      // 4. Time Capsules
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -179,6 +352,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         child: _buildTimeCapsulesSection(context),
                       ),
                       const SizedBox(height: 32),
+
+                      // 5. Memory Vault
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -211,6 +386,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         },
                         child: _buildMemoryVaultSection(context),
                       ),
+                      const SizedBox(height: 24),
+
+                      // Auxiliary Sections (moved to bottom)
+                      _buildRedeemSection(context),
+                      const SizedBox(height: 24),
+                      if (teamId != null) 
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 24),
+                          child: MiniCalendar(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => MemoryCollectionScreen(groupId: teamId),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
                       const SizedBox(height: 40),
                     ],
                   ),
@@ -232,37 +426,57 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          Expanded(
+            child: Row(
+              children: [
+                BondAvatar(
+                  imageUrl: userData?['avatar'],
+                  radius: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Welcome Back, $displayName!",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                      if (teamName != null)
+                        Text(
+                          teamName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12, color: BondBoxColors.primaryPurple, fontWeight: FontWeight.bold),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
           Row(
             children: [
-              const CircleAvatar(
-                radius: 20,
-                backgroundImage: NetworkImage("https://i.pravatar.cc/150?u=jack"),
+              IconButton(
+                onPressed: () {},
+                icon: const Icon(Icons.notifications_none_rounded, color: BondBoxColors.textPrimary),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
               ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Welcome Back, $displayName!",
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-                  if (teamName != null)
-                    Text(
-                      teamName,
-                      style: const TextStyle(fontSize: 12, color: BondBoxColors.primaryPurple, fontWeight: FontWeight.bold),
-                    ),
-                ],
+              const SizedBox(width: 16),
+              IconButton(
+                onPressed: () {},
+                icon: const Icon(Icons.qr_code_scanner_rounded, color: BondBoxColors.textPrimary),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
               ),
             ],
-          ),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.notifications_none_rounded, color: BondBoxColors.textPrimary),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
           ),
         ],
       ),
@@ -371,7 +585,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
           ),
-          const Icon(Icons.chevron_right_rounded, color: BondBoxColors.textSecondary),
+          IconButton(
+  icon: const Icon(
+    Icons.chevron_right_rounded,
+    color: BondBoxColors.textSecondary,
+  ),
+  onPressed: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RewardsScreen(),
+      ),
+    );
+  },
+)
         ],
       ),
     );
@@ -410,84 +637,195 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildHighlightCard(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            BondBoxColors.accentBlue.withOpacity(0.3),
-            BondBoxColors.secondaryPink.withOpacity(0.3),
+  Widget _buildHighlightCard(BuildContext context, String? teamId) {
+    return FadeInUp(
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(minHeight: 215),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF818CF8), Color(0xFFC084FC)], // Premium Indigo-Purple
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(32),
+          boxShadow: [
+            BoxShadow(
+              color: BondBoxColors.primaryPurple.withOpacity(0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
           ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(32),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            right: 10,
-            bottom: 0,
-            top: 20,
-            child: Image.network(
-              "https://api.iconify.design/noto:people-holding-hands-medium-light-skin-tone-medium-dark-skin-tone.svg",
-              width: 150,
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) => const SizedBox(width: 150),
-            ),
-          ),
-          Positioned(
-            right: 16,
-            top: 16,
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: BondBoxColors.primaryPurple.withOpacity(0.2),
-                shape: BoxShape.circle,
+        child: Stack(
+          children: [
+            // Illustration on the right
+            Positioned(
+              right: 0,
+              bottom: 0,
+              top: 0,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topRight: Radius.circular(32),
+                  bottomRight: Radius.circular(32),
+                ),
+                child: Opacity(
+                  opacity: 0.8,
+                  child: Image.network(
+                    "https://cdni.iconscout.com/illustration/premium/thumb/friends-taking-selfie-illustration-download-in-svg-png-gif-formats--group-photos-hanging-out-friendship-pack-activities-illustrations-4014902.png",
+                    width: 180,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) => const SizedBox(width: 180),
+                  ),
+                ),
               ),
-              child: const Icon(Icons.circle, color: BondBoxColors.primaryPurple, size: 8),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Today's Hyllight",
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: BondBoxColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  "Who's most likely to stare\ngroup pictures?",
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w500,
-                    color: BondBoxColors.textPrimary.withOpacity(0.8),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: () {},
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: BondBoxColors.primaryPurple,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      "LIVE NOW",
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10),
                     ),
                   ),
-                  child: const Text("Vote Now", style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  Text(
+                    "Today's Highlight",
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 22,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: MediaQuery.of(context).size.width * 0.45,
+                    child: Text(
+                      "Who's most likely to stare group pictures?",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      if (teamId != null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => DailyPollScreen(teamId: teamId),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Join a crew to vote!")),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: BondBoxColors.primaryPurple,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: const Text("Vote Now", style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildThrowbackSection(BuildContext context) {
+    return StreamBuilder<List<DocumentSnapshot>>(
+      stream: _memoryService.getThrowbackMemories(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) return const SizedBox.shrink();
+
+        final throwbacks = snapshot.data!;
+        
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                "On This Day 📸",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ),
+            SizedBox(
+              height: 180,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: throwbacks.length,
+                itemBuilder: (context, index) {
+                  final data = throwbacks[index].data() as Map<String, dynamic>;
+                  final createdAt = (data['createdAt'] as Timestamp).toDate();
+                  final yearDiff = DateTime.now().year - createdAt.year;
+                  
+                  return Container(
+                    width: 150,
+                    margin: const EdgeInsets.only(right: 16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      image: DecorationImage(
+                        image: NetworkImage(data['coverUrl'] ?? "https://picsum.photos/300"),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(24),
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
+                        ),
+                      ),
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "$yearDiff ${yearDiff > 1 ? "Years" : "Year"} Ago",
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                          Text(
+                            data['name'] ?? "Memory",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.white, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -496,114 +834,61 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFE0C3FC), Color(0xFF8EC5FC)], // Pastel Blue-Purple
-          begin: Alignment.bottomLeft,
-          end: Alignment.topRight,
-        ),
-        borderRadius: BorderRadius.circular(30),
+        color: BondBoxColors.mint.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: BondBoxColors.mint.withOpacity(0.5), width: 1.5),
       ),
       child: Stack(
         children: [
-          // Decorative background elements
-          Positioned(right: -20, top: -20, child: Icon(Icons.star_rounded, size: 100, color: Colors.white.withOpacity(0.2))),
-          
+          Positioned(
+            right: -20, 
+            bottom: -20,
+            child: Icon(Icons.group_add_rounded, size: 120, color: BondBoxColors.mint.withOpacity(0.2)),
+          ),
           Padding(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.all(24),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                     const Text(
-                      "Your Crew Awaits!",
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1E1E2C),
-                      ),
-                    ),
-                    Icon(Icons.diversity_3_rounded, color: Colors.indigo.shade400, size: 28),
-                  ],
+                const Text(
+                  "Level Up Your Vibe 🚀",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: BondBoxColors.textPrimary),
                 ),
-                const SizedBox(height: 16),
-                // Illustration placeholder
-                Image.network(
-                  "https://api.iconify.design/noto:people-hugging.svg", 
-                  height: 100,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_,__,___) => const SizedBox(height: 100, child: Icon(Icons.group, size: 50, color: Colors.white)),
+                const SizedBox(height: 8),
+                const Text(
+                  "Join your crew and start collecting memories together.",
+                  style: TextStyle(color: BondBoxColors.textSecondary, fontSize: 13),
                 ),
-                const SizedBox(height: 24),
-                
+                const SizedBox(height: 20),
                 Row(
                   children: [
                     Expanded(
-                      child: Column(
-                        children: [
-                          const Text("Form Your Squad", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF4B5563))),
-                          const SizedBox(height: 8),
-                          ElevatedButton(
-                            onPressed: _createTeam,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF8B5CF6),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                            ),
-                            child: const Text("+ Create New Crew", style: TextStyle(fontSize: 12)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      height: 50,
-                      width: 1,
-                      color: Colors.white.withOpacity(0.5),
-                      margin: const EdgeInsets.symmetric(horizontal: 16),
-                    ),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          const Text("Join the Vibe", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF4B5563))),
-                          const SizedBox(height: 8),
-                          ElevatedButton(
-                            onPressed: () {
-                              showDialog(
-                                context: context,
-                                builder: (ctx) => AlertDialog(
-                                  title: const Text("Enter Crew Code"),
-                                  content: TextField(
-                                    controller: _crewCodeController,
-                                    decoration: const InputDecoration(hintText: "e.g. 5x82ka", border: OutlineInputBorder()),
-                                  ),
-                                  actions: [
-                                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
-                                    ElevatedButton(
-                                      onPressed: () {
-                                        Navigator.pop(ctx);
-                                        _joinTeam();
-                                      }, 
-                                      child: const Text("Join")
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF60A5FA),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                            ),
-                            child: const Text("Find a Crew", style: TextStyle(fontSize: 12)),
-                          ),
-                        ],
+                      child: TextField(
+                        controller: _crewCodeController,
+                        decoration: InputDecoration(
+                          hintText: "Enter Join Code",
+                          hintStyle: const TextStyle(fontSize: 13),
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                          suffixIcon: _isJoining 
+                            ? const SizedBox(width: 20, height: 20, child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2)))
+                            : IconButton(onPressed: _joinTeam, icon: const Icon(Icons.arrow_forward_rounded, color: BondBoxColors.primaryPurple)),
+                        ),
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                Center(
+                  child: TextButton(
+                    onPressed: _createTeam,
+                    child: const Text(
+                      "Don't have a code? Create Crew",
+                      style: TextStyle(color: BondBoxColors.primaryPurple, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ),
                 ),
               ],
             ),

@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../shared/widgets/shared_widgets.dart';
 import '../../core/theme/bondbox_theme.dart';
+import '../../service/user_service.dart';
 import '../profile/profile_setup_screen.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -26,10 +27,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore =
-      FirebaseFirestore.instance;
-
+  final UserService _userService = UserService();
   bool _isLoading = false;
 
   Future<void> _signUp() async {
@@ -45,36 +43,21 @@ class _SignupScreenState extends State<SignupScreen> {
     try {
       setState(() => _isLoading = true);
 
-      UserCredential userCredential =
-          await _auth.createUserWithEmailAndPassword(
+      await _userService.signUp(
+        fullName: _fullNameController.text.trim(),
+        nickname: _nicknameController.text.trim(),
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
-
-      User? user = userCredential.user;
-
-      if (user != null) {
-        await _firestore
-            .collection("users")
-            .doc(user.uid)
-            .set({
-          "uid": user.uid,
-          "fullName": _fullNameController.text.trim(),
-          "nickname": _nicknameController.text.trim(),
-          "email": _emailController.text.trim(),
-          "photoUrl": null,
-          "createdAt": Timestamp.now(),
-        });
-      }
 
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
             builder: (_) => const ProfileSetupScreen()),
       );
-    } on FirebaseAuthException catch (e) {
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? "Signup failed")),
+        SnackBar(content: Text(e.toString())),
       );
     } finally {
       setState(() => _isLoading = false);

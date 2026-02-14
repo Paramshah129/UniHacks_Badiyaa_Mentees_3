@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/bondbox_theme.dart';
+import '../../shared/widgets/shared_widgets.dart';
 
 class FeedScreen extends StatelessWidget {
   const FeedScreen({super.key});
@@ -168,7 +169,7 @@ class FeedScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              CircleAvatar(radius: 14, backgroundImage: NetworkImage("https://i.pravatar.cc/150?u=$user")),
+              BondAvatar(radius: 14, imageUrl: "https://i.pravatar.cc/150?u=$user"),
               const SizedBox(width: 10),
               Text(user, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               const Spacer(),
