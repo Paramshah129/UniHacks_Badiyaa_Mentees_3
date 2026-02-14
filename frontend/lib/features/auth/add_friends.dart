@@ -1,8 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
-import '../../core/theme/bondbox_theme.dart';
-import '../../shared/widgets/shared_widgets.dart';
+import 'package:friendsconnect/core/theme/bondbox_theme.dart';
+import 'package:friendsconnect/shared/widgets/shared_widgets.dart';
 import '../navigation/main_navigation_screen.dart';
 import '../../service/user_service.dart';
 
@@ -137,7 +137,18 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
                                 "Add Friend", 
                                 Icons.add_circle_outline, 
                                 Colors.pink[200]!,
-                                onTap: () => _userService.sendFriendRequest(user['uid']),
+                                onTap: () async {
+                                  await _userService.addFriendDirectly(user['uid']);
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text("Connected with @${user['nickname']}! ✨"),
+                                        backgroundColor: Colors.pink[200],
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  }
+                                },
                               ),
                             )),
                         ],
@@ -196,7 +207,18 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
                               "Vibe Check", 
                               Icons.add_circle_outline, 
                               Colors.pink[200]!,
-                              onTap: () => _userService.sendFriendRequest(user['uid']),
+                              onTap: () async {
+                                await _userService.addFriendDirectly(user['uid']);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text("Vibing with @${user['nickname']}! 🚀"),
+                                      backgroundColor: Colors.pink[200],
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                }
+                              },
                             ),
                           )),
                       ],

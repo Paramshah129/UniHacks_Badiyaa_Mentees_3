@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/bondbox_theme.dart';
+import 'package:friendsconnect/core/theme/bondbox_theme.dart';
 
 class BondGradientBackground extends StatelessWidget {
   final Widget child;

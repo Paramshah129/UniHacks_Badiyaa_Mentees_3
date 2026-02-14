@@ -3,9 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:friendsconnect/core/theme/bondbox_theme.dart';
-import '../../shared/widgets/shared_widgets.dart';
-import '../../service/team_service.dart';
-import '../../service/memory_service.dart';
+import 'package:friendsconnect/shared/widgets/shared_widgets.dart';
+import 'package:friendsconnect/service/team_service.dart';
+import 'package:friendsconnect/service/memory_service.dart';
 import '../chat/team_chat_screen.dart';
 import '../leaderboard/leaderboard_screen.dart';
 import '../capsules/capsule_list_screen.dart';
@@ -319,6 +319,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       _buildSectionHeader(context, "Games"),
                       const SizedBox(height: 16),
                       _buildGamesSection(context),
+                      const SizedBox(height: 32),
+
+                      // New Section: Your Crew
+                      _buildSectionHeader(context, "Your Crew"),
+                      const SizedBox(height: 16),
+                      _buildCrewFriendsSection(context, userData),
                       const SizedBox(height: 32),
 
                       // 4. Time Capsules
@@ -671,11 +677,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 child: Opacity(
                   opacity: 0.8,
-                  child: Image.network(
-                    "https://cdni.iconscout.com/illustration/premium/thumb/friends-taking-selfie-illustration-download-in-svg-png-gif-formats--group-photos-hanging-out-friendship-pack-activities-illustrations-4014902.png",
+                  child: Image.asset(
+                    "assets/images/image1.png", // USER NOTE: Ensure image1.png is in assets/images/
                     width: 180,
                     fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) => const SizedBox(width: 180),
+                    errorBuilder: (context, error, stackTrace) => const SizedBox(width: 180, child: Icon(Icons.image_outlined, size: 80, color: Colors.white24)),
                   ),
                 ),
               ),
@@ -709,41 +715,74 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(height: 8),
                   SizedBox(
                     width: MediaQuery.of(context).size.width * 0.45,
-                    child: Text(
-                      "Who's most likely to stare group pictures?",
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white,
-                        fontSize: 14,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Who's most likely to stare group pictures?",
+                          style: TextStyle(
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          "✨ New faces recently joined!",
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 11,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      if (teamId != null) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => DailyPollScreen(teamId: teamId),
+                  Row(
+                    children: [
+                      ElevatedButton(
+                        onPressed: () {
+                          if (teamId != null) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => DailyPollScreen(teamId: teamId),
+                              ),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Join a crew to vote!")),
+                            );
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: BondBoxColors.primaryPurple,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                        );
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Join a crew to vote!")),
-                        );
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: BondBoxColors.primaryPurple,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Text("Vote Now", style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
-                    ),
-                    child: const Text("Vote Now", style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 8),
+                      // Upload Photo Option
+                      IconButton(
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Cloudinary upload coming soon! 🚀")),
+                          );
+                        },
+                        icon: const Icon(Icons.add_a_photo_rounded, color: Colors.white),
+                        tooltip: "Upload Photo",
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.white.withOpacity(0.2),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -826,6 +865,74 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildCrewFriendsSection(BuildContext context, Map<String, dynamic>? userData) {
+    final friendIds = List<String>.from(userData?['friends'] ?? []);
+    
+    if (friendIds.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.grey[100]!),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.people_outline_rounded, color: BondBoxColors.primaryPurple),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                "Your crew is looking a bit empty! Time to add some vibers. ✨",
+                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 100,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: friendIds.length,
+        itemBuilder: (context, index) {
+          final friendId = friendIds[index];
+          return FutureBuilder<DocumentSnapshot>(
+            future: FirebaseFirestore.instance.collection('users').doc(friendId).get(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return const SizedBox(width: 80);
+              final friendData = snapshot.data!.data() as Map<String, dynamic>;
+              return FadeInRight(
+                delay: Duration(milliseconds: index * 100),
+                child: Container(
+                  width: 80,
+                  margin: const EdgeInsets.only(right: 16),
+                  child: Column(
+                    children: [
+                      BondAvatar(
+                        imageUrl: friendData['avatar'],
+                        radius: 28,
+                        border: Border.all(color: BondBoxColors.primaryPurple.withOpacity(0.2), width: 2),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        friendData['nickname'] ?? "Viber",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 

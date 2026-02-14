@@ -142,6 +142,32 @@ class UserService {
     });
   }
 
+  // ADD FRIEND DIRECTLY (Instant Connection)
+  Future<void> addFriendDirectly(String targetUid) async {
+    final myUid = currentUserId;
+    
+    // friendshipId to ensure uniqueness
+    final friendshipId = myUid.hashCode <= targetUid.hashCode 
+        ? '${myUid}_$targetUid' 
+        : '${targetUid}_$myUid';
+
+    await _firestore.runTransaction((transaction) async {
+      // 1. Create friendship
+      transaction.set(_firestore.collection('friendships').doc(friendshipId), {
+        'uids': [myUid, targetUid],
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      // 2. Add to both users' friends list for faster querying
+      transaction.update(_firestore.collection('users').doc(myUid), {
+        'friends': FieldValue.arrayUnion([targetUid])
+      });
+      transaction.update(_firestore.collection('users').doc(targetUid), {
+        'friends': FieldValue.arrayUnion([myUid])
+      });
+    });
+  }
+
   // GET PENDING REQUESTS
   Stream<List<Map<String, dynamic>>> getPendingRequests() {
     return _firestore
